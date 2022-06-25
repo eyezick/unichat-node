@@ -131,7 +131,16 @@ const invokeAddData = (oldHash: string, newHash: string) => {
     const tx = unichatWithSigner.AddData(oldHash, newHash);
 
     return {
-        oldHash
+        oldHash // TODO: determine better return
     }
+}
+
+const listenForEvents = () => {
+    unichatContract.on("NewEntry", (hash, event) => {
+        console.log(`New hash received: ${ hash}`);
+        // The event object contains the verbatim log data, the
+        // EventFragment and functions to fetch the block,
+        // transaction and receipt and event functions
+    });
 }
 
