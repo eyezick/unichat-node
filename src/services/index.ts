@@ -1,6 +1,9 @@
 import { ethers } from "ethers";
 import { Message, DataEntry , DataStructure} from '../types'
 import { cache, storage } from '../store'
+import * as dotenv from 'dotenv';
+
+dotenv.config()
 
 // const message: Message = {
 //     signature: '0x23234432', //this signature signs all the other fields in the message
@@ -112,24 +115,23 @@ const unichatAbi = [
   
 ];
 
-const provider = new ethers.providers.JsonRpcProvider();
+const provider = new ethers.providers.JsonRpcProvider(process.env.URL);
 
 const signer = provider.getSigner()
-
 
 // The Contract object
 const unichatContract = new ethers.Contract(unichatAddress, unichatAbi, provider);
 
-const invokeAddData = (hash: string) => {
+const invokeAddData = (oldHash: string, newHash: string) => {
 
     const unichatWithSigner = unichatContract.connect(signer);
 
     const eth = ethers.utils.parseUnits("1.0", 18);
 
-    const tx = unichatWithSigner.AddData("initial", "newhash");
+    const tx = unichatWithSigner.AddData(oldHash, newHash);
 
     return {
-        hash
+        oldHash
     }
 }
 
