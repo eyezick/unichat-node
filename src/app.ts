@@ -34,10 +34,12 @@ app.post('/gossip', (req: Request, res: Response)  => {
         if (success) {
             res.status(200).send()
         } else {
+            console.log("failed validation")
             res.status(400).send()
         }
-    } catch {
+    } catch (e) {
         res.status(400).send()
+        console.log(e)
     }
 });
 
@@ -61,12 +63,16 @@ app.post('/dataEntries', (req: Request, res: Response)  => {
     res.send({latestEntries})
 })
 
-app.post('/addData', (req: Request, res: Response)  => {
-    console.log('req', req.body.messages)
-    const dataStructure = getRawDataStructure();
-    const hashes = getHashes(dataStructure, req.body.messages); 
-    const dataToAdd = invokeAddData(hashes.oldHash, hashes.newHash) 
-    res.send({dataToAdd}) // TODO: invokeAddData should return a success message once transaction succeeds
+app.post('/addData', (req: Request, res: Response) => {
+    const { oldHash, newHash} = req.body
+    invokeAddData(oldHash, newHash).then(result => {
+        console.log({result})
+        res.status(200).send()
+    }).catch(e => {
+        console.log
+        res.status(400).send()
+
+    })
 })
 
 const PORT = process.env.PORT || 3000;

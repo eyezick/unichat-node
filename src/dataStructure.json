@@ -1,5 +1,8 @@
 {
   "dataEntries": [
-    {"hash":  "initial", "messages": []}
+    {
+      "hash": "initial",
+      "messages": []
+    }
   ]
 }
