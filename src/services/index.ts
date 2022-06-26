@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import jsonfile from 'jsonfile'
 import { Message, DataEntry , DataStructure} from '../types'
 import { cache, storage } from '../store'
+import { rules }  from './consensus';
 import {  unichatAbi, unichatAddress, unichatContract, signer, provider } from '../constants'
 import * as dotenv from 'dotenv';
 
@@ -71,7 +72,7 @@ if Bad hash:
 
 export const getHashes = (dataStructure: DataStructure, newMessages: Array<Message>): {oldHash: string, newHash: string} => {
     const mostRecentHash = dataStructure[dataStructure.length - 1].hash
-    const generatedHash = ethers.utils.sha256(newMessages.toString() + mostRecentHash)
+    const generatedHash = ethers.utils.sha256(JSON.stringify(newMessages) + mostRecentHash)
     const hashes = { oldHash: mostRecentHash, newHash: generatedHash }
     return hashes
 }
@@ -81,9 +82,9 @@ export const initialDataStructureLoad = () => {
     jsonfile.readFile('src/dataStructure.json').then(json => {
         storage.dataStructure = json.dataEntries
     })
-}
+};
 
-export const validateMessage = (message: unknown): { success: false } | { success: true, message: Message}  => {
+export const validMessage = (message: unknown): { success: false } | { success: true, message: Message}  => {
     if (typeof message !== 'object') return { success: false}
     const objMessage = message as Record<string, unknown>
     if (typeof objMessage.from !== 'string') return { success: false}
@@ -108,13 +109,27 @@ export const getLocalMessages = (): Array<Message> => {
     return cache.localMessages
 }
 
-//1.
+export const addToMemPool = (dataEntry: DataEntry) => {
+    //this is a core part of the consensus mechanism
+    try {
+        const success = rules.every(rule => rule(dataEntry))
+        if (success) {
+            cache.memPool.push(dataEntry)
+        } else {
+            return false
+        }
+    } catch {
+        return false
+    }
+}
+
+
 export const getRawDataStructure = (): DataStructure => {
 
     return storage.dataStructure
 }
 
-//2.
+
 export const getLatestDataEntries = (hash: string) => {
     //iterate from end to beginning
     for (let i = storage.dataStructure.length - 1; i > -1; i--) {
@@ -125,8 +140,8 @@ export const getLatestDataEntries = (hash: string) => {
     }
 }
 
-//3.
-const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
+
+export const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
     const hashes = getHashes(storage.dataStructure, messages)
     return {
         hash: hashes.newHash,
