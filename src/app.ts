@@ -1,18 +1,34 @@
 import { config } from 'dotenv';
-import express, { Application, NextFunction, Request, Response } from 'express';
-import { getRawDataStructure, getLatestDataEntries, getHashes } from './services'
+import express, { Application, Request, Response } from 'express';
+import { getRawDataStructure, getLatestDataEntries, getHashes, initialDataStructureLoad, addToLocalMessages, getLocalMessages, validateMessage } from './services'
 import { invokeAddData } from './services'
 
 config();
 
 const app: Application = express();
 
-// app.use(bodyParser.json({ type: 'application/*+json' }))
+initialDataStructureLoad()
+
 app.use(express.json());
 
 app.get('/dataStructure', (req: Request, res: Response) => {
     const dataStructure = getRawDataStructure();
     res.send({dataStructure})
+});
+
+app.post('/localMessages', (req: Request, res: Response)  => {
+    const result = validateMessage(req.body.message)
+    if (result.success) {
+        addToLocalMessages(req.body.message)
+        res.status(200).send()
+    } else {
+        res.status(400).send()
+    }
+});
+
+app.get('/localMessages', (req: Request, res: Response)  => {
+    const messages = getLocalMessages()
+    res.send({messages})
 });
 
 app.post('/dataEntries', (req: Request, res: Response)  => {
