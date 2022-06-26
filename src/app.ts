@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import express, { Application, NextFunction, Request, Response } from 'express';
-import { getRawDataStructure, getLatestDataEntries } from './services'
+import { getRawDataStructure, getLatestDataEntries, getHashes } from './services'
+import { invokeAddData } from './services'
 
 config();
 
@@ -18,6 +19,14 @@ app.post('/dataEntries', (req: Request, res: Response)  => {
     console.log('req', req.body)
     const latestEntries = getLatestDataEntries(req.body.hash)
     res.send({latestEntries})
+})
+
+app.post('/addData', (req: Request, res: Response)  => {
+    console.log('req', req.body.messages)
+    const dataStructure = getRawDataStructure();
+    const hashes = getHashes(dataStructure, req.body.messages); 
+    const dataToAdd = invokeAddData(hashes.oldHash, hashes.newHash) 
+    res.send({dataToAdd}) // TODO: invokeAddData should return a success message once transaction succeeds
 })
 
 const PORT = process.env.PORT || 3000;

@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import { Message, DataEntry , DataStructure} from '../types'
 import { cache, storage } from '../store'
+import {  unichatAbi, unichatAddress, unichatContract, signer, provider } from '../constants'
 import * as dotenv from 'dotenv';
 
 dotenv.config()
@@ -67,9 +68,11 @@ if Bad hash:
  - Validate the hash they submitted and ALSO the messages pass consensus "messages" rules, if GOOD then add to mempool
  */
 
-const getLatestHash = (dataStructure: DataStructure, newMessages: Array<Message>): string => {
+export const getHashes = (dataStructure: DataStructure, newMessages: Array<Message>): {oldHash: string, newHash: string} => {
     const mostRecentHash = dataStructure[dataStructure.length - 1].hash
-    return ethers.utils.sha256(newMessages.toString() + mostRecentHash)
+    const generatedHash = ethers.utils.sha256(newMessages.toString() + mostRecentHash)
+    const hashes = { oldHash: mostRecentHash, newHash: generatedHash }
+    return hashes
 }
 
 //1.
@@ -90,9 +93,9 @@ export const getLatestDataEntries = (hash: string) => {
 
 //3.
 const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
-    const hash = getLatestHash(storage.dataStructure, messages)
+    const hashes = getHashes(storage.dataStructure, messages)
     return {
-        hash,
+        hash: hashes.newHash,
         messages
     }
 }
@@ -101,46 +104,32 @@ const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
 
 
 // send transaction with hash constructed from batch of messages
-const unichatAddress = "0x47a1fc3ef4d00e9862724e4d2cbc96a35e26a803"; // TODO: update this to other networks as needed
-
-// The ERC-20 Contract ABI, which is a common contract interface
-// for tokens (this is the Human-Readable ABI format)
-const unichatAbi = [
-  // human-readable ABI for Unichat contract
-  "function AddData(string memory _oldHash, string memory _newHash) payable public returns(bool)",
-  
-  "function WithdrawFunds(address payable _address) external returns(bool)",
-
-  "event NewEntry(string _hash)",
-  
-];
-
-const provider = new ethers.providers.JsonRpcProvider(process.env.URL);
-
-const signer = provider.getSigner()
-
-// The Contract object
-const unichatContract = new ethers.Contract(unichatAddress, unichatAbi, provider);
-
-const invokeAddData = (oldHash: string, newHash: string) => {
-
+// take the output of buildSingleDataEntry for newHash
+export const invokeAddData = (oldHash: string, newHash: string) => {
     const unichatWithSigner = unichatContract.connect(signer);
-
     const eth = ethers.utils.parseUnits("1.0", 18);
-
-    const tx = unichatWithSigner.AddData(oldHash, newHash);
+    const tx = unichatWithSigner.AddData(oldHash, newHash)
+        .then(console.log)
 
     return {
-        oldHash // TODO: determine better return
+        oldHash // TODO: invokeAddData should return a success message once transaction succeeds
     }
 }
 
-const listenForEvents = () => {
-    unichatContract.on("NewEntry", (hash, event) => {
-        console.log(`New hash received: ${ hash}`);
-        // The event object contains the verbatim log data, the
-        // EventFragment and functions to fetch the block,
-        // transaction and receipt and event functions
-    });
-}
+/*
+doSomething()
+  .then(function (result) {
+    return doSomethingElse(result);
+  })
+  .then(function (newResult) {
+    return doThirdThing(newResult);
+  })
+  .then(function (finalResult) {
+    console.log("Got the final result: " + finalResult);
+  })
+  .catch(failureCallback);
+*/
 
+const onNewEntry = () => {
+    // this needs to take the event from listenForEvents and clear it from the local pool and mempool
+}
