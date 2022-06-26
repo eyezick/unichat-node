@@ -3,19 +3,19 @@ import jsonfile from 'jsonfile'
 import { Message, DataEntry , DataStructure} from '../types'
 import { cache, storage } from '../store'
 import { rules }  from './consensus';
-import {  unichatAbi, unichatAddress, unichatContract, signer, provider } from '../constants'
+import { getContractReference, getWallet } from "./provider";
 import * as dotenv from 'dotenv';
 
 dotenv.config()
-
-// const message: Message = {
-//     signature: '0x23234432', //this signature signs all the other fields in the message
-//     from: 'Bob.eth',
-//     to: 'Sam.eth',
-//     time: 45334255234345,
-//     text: 'i love you so much',
-//     cid: '13420897142'
-// }
+/*
+const message: Message = {
+    signature: '0x23234432', //this signature signs all the other fields in the message
+    from: 'Bob.eth',
+    to: 'Sam.eth',
+    time: 45334255234345,
+    text: 'i love you so much',
+    cid: '13420897142'
+}*/
 
 // const singleDataEntry: DataEntry = {
 //     hash: '0x1241234413', //this hash represents the ENTIRE `dataStructure` hashed down, including the messages of this singleDataEntry only
@@ -70,9 +70,10 @@ if Bad hash:
  - Validate the hash they submitted and ALSO the messages pass consensus "messages" rules, if GOOD then add to mempool
  */
 
-export const getHashes = (dataStructure: DataStructure, newMessages: Array<Message>): {oldHash: string, newHash: string} => {
+ export const getHashes = (dataStructure: DataStructure, newMessages: Array<Message>): {oldHash: string, newHash: string} => {
     const mostRecentHash = dataStructure[dataStructure.length - 1].hash
-    const generatedHash = ethers.utils.sha256(JSON.stringify(newMessages) + mostRecentHash)
+    const buffer = Buffer.from(JSON.stringify(newMessages) + mostRecentHash, 'utf8')
+    const generatedHash = ethers.utils.sha256(buffer)
     const hashes = { oldHash: mostRecentHash, newHash: generatedHash }
     return hashes
 }
@@ -115,10 +116,11 @@ export const addToMemPool = (dataEntry: DataEntry) => {
         const success = rules.every(rule => rule(dataEntry))
         if (success) {
             cache.memPool.push(dataEntry)
+            return true
         } else {
             return false
         }
-    } catch {
+    } catch (e) {
         return false
     }
 }
@@ -138,8 +140,7 @@ export const getLatestDataEntries = (hash: string) => {
             return storage.dataStructure.slice(i + 1) //return all the data entries after
         }
     }
-}
-
+};
 
 export const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
     const hashes = getHashes(storage.dataStructure, messages)
@@ -149,36 +150,69 @@ export const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
     }
 }
 
-//4.
-
-
 // send transaction with hash constructed from batch of messages
 // take the output of buildSingleDataEntry for newHash
-export const invokeAddData = (oldHash: string, newHash: string) => {
-    const unichatWithSigner = unichatContract.connect(signer);
-    const eth = ethers.utils.parseUnits("1.0", 18);
-    const tx = unichatWithSigner.AddData(oldHash, newHash)
-        .then(console.log)
+export const invokeAddData = async (oldHash: string, newHash: string) => {
+    console.log(1)
+    const unichatContract = getContractReference()
+    console.log(2)
+    const { provider, wallet, walletPrivateKey } = getWallet()
+    //const unichatWithSigner = unichatContract.connect(signer)
+    //console.log(unichatWithSigner)
+    const matic = ethers.utils.parseUnits(".001", 18)
+    //console.log(matic)
+
+    // LINE BELOW IS THE PROBLEM
+    let tx
+    try { 
+        tx = await unichatContract.addData(oldHash, newHash, {value: matic, gasLimit: 460240, gasPrice: 40206479890 })
+    } catch(e) {
+        console.log('error here', e)
+    }
+    
+    const wallettest = await walletPrivateKey.signTransaction(tx)
+    const chainId = await tx.chainId
+    const from = await tx.from
+    console.log({chainId, from})
+    console.log("WALLET TEST", wallettest) 
+
+    //console.log("is signer", await walletPrivateKey.isSigner)
+    const connectedWallet = walletPrivateKey.connect(provider)
+    await connectedWallet.sendTransaction(tx)
+    console.log(3)
+    
+    // addData(oldHash, newHash {value: matic, gasLimit: 9000000})
+    //console.log(transaction)
 
     return {
         oldHash // TODO: invokeAddData should return a success message once transaction succeeds
     }
 }
 
-/*
-doSomething()
-  .then(function (result) {
-    return doSomethingElse(result);
-  })
-  .then(function (newResult) {
-    return doThirdThing(newResult);
-  })
-  .then(function (finalResult) {
-    console.log("Got the final result: " + finalResult);
-  })
-  .catch(failureCallback);
-*/
+const appendDataStructure = (dataEntry: DataEntry) => {
+    storage.dataStructure.push(dataEntry)
+    const dataStructure = storage.dataStructure
+    return new Promise((resolve, reject) => {
+        jsonfile.writeFile('src/dataStructure.json', {dataEntries: dataStructure} , function (err) {
+            if (err) reject(err)
+            else {
+                resolve(true)
+            }
+        })
+    })
+}
 
-const onNewEntry = () => {
-    // this needs to take the event from listenForEvents and clear it from the local pool and mempool
+export const onNewEntry = (hash: string, event: unknown) => {
+    console.log('heard hash:', hash)
+    const foundMempoolEntry = cache.memPool.find(x => x.hash === hash)
+    if (!foundMempoolEntry) {
+        console.log('no matching pool entry')
+    } else {
+        appendDataStructure(foundMempoolEntry).then(success => {
+            cache.memPool.filter(x => x.hash !== hash)
+            console.log('SUCCESSFULLY APPENDED')
+        })
+    }
+
+    // this needs to take the event from listenForEvents and clear it from the mempool
 }

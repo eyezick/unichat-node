@@ -1,14 +1,16 @@
 import { config } from 'dotenv';
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors'
-import { getRawDataStructure, getLatestDataEntries, getHashes, initialDataStructureLoad, addToLocalMessages, getLocalMessages, validMessage, buildSingleDataEntry, addToMemPool} from './services'
+import { getRawDataStructure, getLatestDataEntries, initialDataStructureLoad, addToLocalMessages, getLocalMessages, validMessage, buildSingleDataEntry, addToMemPool} from './services'
 import { invokeAddData } from './services'
+import { listenForEvents } from './services/listeners'
 
 config();
 
 const app: Application = express();
 
 initialDataStructureLoad()
+listenForEvents()
 
 app.use(cors())
 app.use(express.json());
@@ -34,17 +36,19 @@ app.post('/gossip', (req: Request, res: Response)  => {
         if (success) {
             res.status(200).send()
         } else {
+            console.log("failed validation")
             res.status(400).send()
         }
-    } catch {
+    } catch (e) {
         res.status(400).send()
+        console.log(e)
     }
 });
 
 app.post('/newEntry', (req: Request, res: Response)  => {
     try {
         const newEntry = buildSingleDataEntry(req.body.messages)
-        res.send({newEntry})
+        res.send({dataEntry:newEntry})
     } catch {
         res.status(400).send()
     }
@@ -61,12 +65,16 @@ app.post('/dataEntries', (req: Request, res: Response)  => {
     res.send({latestEntries})
 })
 
-app.post('/addData', (req: Request, res: Response)  => {
-    console.log('req', req.body.messages)
-    const dataStructure = getRawDataStructure();
-    const hashes = getHashes(dataStructure, req.body.messages); 
-    const dataToAdd = invokeAddData(hashes.oldHash, hashes.newHash) 
-    res.send({dataToAdd}) // TODO: invokeAddData should return a success message once transaction succeeds
+app.post('/addData', (req: Request, res: Response) => {
+    const { oldHash, newHash} = req.body
+    invokeAddData(oldHash, newHash).then(result => {
+        console.log({result})
+        res.status(200).send()
+    }).catch(e => {
+        console.log(e)
+        res.status(400).send()
+
+    })
 })
 
 const PORT = process.env.PORT || 3000;
