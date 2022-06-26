@@ -2,6 +2,7 @@ import { onNewEntry } from '.';
 import {  getContractReference } from './provider'
 
 export const listenForEvents = () => {
+    console.log('should belistening')
     const unichatContract = getContractReference()
     unichatContract.on("NewEntry", (hash, event) => {
         console.log(`New hash received: ${ hash}`);

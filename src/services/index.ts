@@ -3,7 +3,7 @@ import jsonfile from 'jsonfile'
 import { Message, DataEntry , DataStructure} from '../types'
 import { cache, storage } from '../store'
 import { rules }  from './consensus';
-import { getContractReference, getWallet } from "../services/provider";
+import { getContractReference, getWallet } from "./provider";
 import * as dotenv from 'dotenv';
 
 dotenv.config()
@@ -87,24 +87,16 @@ export const initialDataStructureLoad = () => {
 
 export const validMessage = (message: unknown): { success: false } | { success: true, message: Message}  => {
     if (typeof message !== 'object') return { success: false}
-    console.log('a')
     const objMessage = message as Record<string, unknown>
     if (typeof objMessage.from !== 'string') return { success: false}
-    console.log('b')
     if (typeof objMessage.to !== 'string') return { success: false}
-    console.log('c')
     if (typeof objMessage.signature !== 'string') return { success: false}
-    console.log('d')
     if (typeof objMessage.text !== 'string') return { success: false}
-    console.log('e')
     if (typeof objMessage.cid !== 'string') return { success: false}
-    console.log('f')
     if (typeof objMessage.time !== 'number') return { success: false}
-    console.log('g')
     const time = objMessage.time as number
     const isSeconds = (time * 1000) < Date.now()
     if (!isSeconds) return { success: false}
-    console.log('h')
 
     const validatedMessage = message as Message
     return { success: true, message: validatedMessage}
@@ -148,8 +140,7 @@ export const getLatestDataEntries = (hash: string) => {
             return storage.dataStructure.slice(i + 1) //return all the data entries after
         }
     }
-}
-
+};
 
 export const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
     const hashes = getHashes(storage.dataStructure, messages)
@@ -158,9 +149,6 @@ export const buildSingleDataEntry = (messages: Array<Message>): DataEntry => {
         messages
     }
 }
-
-//4.
-
 
 // send transaction with hash constructed from batch of messages
 // take the output of buildSingleDataEntry for newHash
@@ -177,8 +165,7 @@ export const invokeAddData = async (oldHash: string, newHash: string) => {
     // LINE BELOW IS THE PROBLEM
     let tx
     try { 
-        tx = await unichatContract.addData(oldHash, newHash, {value: matic, gasLimit: 
-            460240, gasPrice: 32206479890 })
+        tx = await unichatContract.addData(oldHash, newHash, {value: matic, gasLimit: 460240, gasPrice: 40206479890 })
     } catch(e) {
         console.log('error here', e)
     }
@@ -202,6 +189,30 @@ export const invokeAddData = async (oldHash: string, newHash: string) => {
     }
 }
 
+const appendDataStructure = (dataEntry: DataEntry) => {
+    storage.dataStructure.push(dataEntry)
+    const dataStructure = storage.dataStructure
+    return new Promise((resolve, reject) => {
+        jsonfile.writeFile('src/dataStructure.json', {dataEntries: dataStructure} , function (err) {
+            if (err) reject(err)
+            else {
+                resolve(true)
+            }
+        })
+    })
+}
+
 export const onNewEntry = (hash: string, event: unknown) => {
-    // this needs to take the event from listenForEvents and clear it from the local pool and mempool
+    console.log('heard hash:', hash)
+    const foundMempoolEntry = cache.memPool.find(x => x.hash === hash)
+    if (!foundMempoolEntry) {
+        console.log('no matching pool entry')
+    } else {
+        appendDataStructure(foundMempoolEntry).then(success => {
+            cache.memPool.filter(x => x.hash !== hash)
+            console.log('SUCCESSFULLY APPENDED')
+        })
+    }
+
+    // this needs to take the event from listenForEvents and clear it from the mempool
 }

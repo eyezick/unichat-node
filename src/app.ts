@@ -1,14 +1,16 @@
 import { config } from 'dotenv';
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors'
-import { getRawDataStructure, getLatestDataEntries, getHashes, initialDataStructureLoad, addToLocalMessages, getLocalMessages, validMessage, buildSingleDataEntry, addToMemPool} from './services'
+import { getRawDataStructure, getLatestDataEntries, initialDataStructureLoad, addToLocalMessages, getLocalMessages, validMessage, buildSingleDataEntry, addToMemPool} from './services'
 import { invokeAddData } from './services'
+import { listenForEvents } from './services/listeners'
 
 config();
 
 const app: Application = express();
 
 initialDataStructureLoad()
+listenForEvents()
 
 app.use(cors())
 app.use(express.json());
@@ -46,7 +48,7 @@ app.post('/gossip', (req: Request, res: Response)  => {
 app.post('/newEntry', (req: Request, res: Response)  => {
     try {
         const newEntry = buildSingleDataEntry(req.body.messages)
-        res.send({newEntry})
+        res.send({dataEntry:newEntry})
     } catch {
         res.status(400).send()
     }
@@ -69,7 +71,7 @@ app.post('/addData', (req: Request, res: Response) => {
         console.log({result})
         res.status(200).send()
     }).catch(e => {
-        console.log
+        console.log(e)
         res.status(400).send()
 
     })
