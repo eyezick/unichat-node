@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import express, { Application, Request, Response } from 'express';
-import { getRawDataStructure, getLatestDataEntries, getHashes, initialDataStructureLoad, addToLocalMessages, getLocalMessages, validateMessage } from './services'
+import cors from 'cors'
+import { getRawDataStructure, getLatestDataEntries, getHashes, initialDataStructureLoad, addToLocalMessages, getLocalMessages, validMessage, buildSingleDataEntry, addToMemPool} from './services'
 import { invokeAddData } from './services'
 
 config();
@@ -9,6 +10,7 @@ const app: Application = express();
 
 initialDataStructureLoad()
 
+app.use(cors())
 app.use(express.json());
 
 app.get('/dataStructure', (req: Request, res: Response) => {
@@ -17,11 +19,33 @@ app.get('/dataStructure', (req: Request, res: Response) => {
 });
 
 app.post('/localMessages', (req: Request, res: Response)  => {
-    const result = validateMessage(req.body.message)
+    const result = validMessage(req.body.message)
     if (result.success) {
         addToLocalMessages(req.body.message)
         res.status(200).send()
     } else {
+        res.status(400).send()
+    }
+});
+
+app.post('/gossip', (req: Request, res: Response)  => {
+    try {
+        const success = addToMemPool(req.body.dataEntry)
+        if (success) {
+            res.status(200).send()
+        } else {
+            res.status(400).send()
+        }
+    } catch {
+        res.status(400).send()
+    }
+});
+
+app.post('/newEntry', (req: Request, res: Response)  => {
+    try {
+        const newEntry = buildSingleDataEntry(req.body.messages)
+        res.send({newEntry})
+    } catch {
         res.status(400).send()
     }
 });
